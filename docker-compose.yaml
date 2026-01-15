@@ -1,0 +1,111 @@
+services:
+  model-downloader:
+    image: alpine:3.20
+    command:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        apk add --no-cache wget
+        if [ ! -f /models/Llama-3.2-1B-Instruct-Q4_K_M.gguf ]; then
+          echo "Downloading model..."
+          wget -O /models/Llama-3.2-1B-Instruct-Q4_K_M.gguf \
+            "https://huggingface.co/medmekk/Llama-3.2-1B-Instruct.GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf"
+        else
+          echo "Model already present, skipping download."
+        fi
+    volumes:
+      - /home/madmax/Documents/Projects/LeanLLM-as-a-service/models:/models
+    networks:
+      - llmnet
+    restart: "no"
+
+  llama:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    depends_on:
+      model-downloader:
+        condition: service_completed_successfully
+    command:
+      - --model
+      - /models/Llama-3.2-1B-Instruct-Q4_K_M.gguf
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --ctx-size
+      - "4096"
+      - --parallel
+      - "1"
+      - --threads
+      - "2"
+      - --metrics
+    volumes:
+      - /home/madmax/Documents/Projects/LeanLLM-as-a-service/models:/models:ro
+    expose:
+      - "8000"
+    networks:
+      - llmnet
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - /home/madmax/Documents/Projects/LeanLLM-as-a-service/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - llama
+    networks:
+      - llmnet
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    ports:
+      - "9090:9090"
+    volumes:
+      - /home/madmax/Documents/Projects/LeanLLM-as-a-service/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - llama
+      - node-exporter
+    networks:
+      - llmnet
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.1.4
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - /home/madmax/Documents/Projects/LeanLLM-as-a-service/grafana/provisioning:/etc/grafana/provisioning:ro
+      - /home/madmax/Documents/Projects/LeanLLM-as-a-service/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    networks:
+      - llmnet
+    restart: unless-stopped
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/rootfs
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    expose:
+      - "9100"
+    networks:
+      - llmnet
+    restart: unless-stopped
+
+networks:
+  llmnet:
+    driver: bridge
+

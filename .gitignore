@@ -1,0 +1,7 @@
+models/*.gguf
+models/**/*.gguf
+.env
+*.log
+__pycache__/
+.DS_Store
+

@@ -1,0 +1,89 @@
+{
+  "title": "Lean LLM Service",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Tokens Per Second",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "avg(llamacpp:prompt_tokens_seconds)",
+          "legendFormat": "prompt_tps"
+        },
+        {
+          "expr": "avg(llamacpp:predicted_tokens_seconds)",
+          "legendFormat": "gen_tps"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "tps",
+          "decimals": 2
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU Usage (%)",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[1m])) * 100)",
+          "legendFormat": "cpu"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Requests (Processing vs Deferred)",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "avg(llamacpp:requests_processing)",
+          "legendFormat": "processing"
+        },
+        {
+          "expr": "avg(llamacpp:requests_deferred)",
+          "legendFormat": "deferred"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Token Counters (rate)",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(llamacpp:prompt_tokens_total[1m]))",
+          "legendFormat": "prompt_tps"
+        },
+        {
+          "expr": "sum(rate(llamacpp:tokens_predicted_total[1m]))",
+          "legendFormat": "gen_tps"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "tps",
+          "decimals": 2
+        }
+      }
+    }
+  ]
+}
+
