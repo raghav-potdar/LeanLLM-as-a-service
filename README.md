@@ -7,8 +7,8 @@ This repo provides a production-style, CPU-only LLM API stack using:
 
 ## Step A: Provision the server
 
-1. Create a DigitalOcean droplet (Premium Intel, Ubuntu).
-2. Add your SSH key in the DigitalOcean UI, then SSH in:
+1. Create a VM on cloud (4GB RAM / 2 vCPU)
+2. Add your SSH key, then SSH in:
    - `ssh root@YOUR_DROPLET_IP`
 3. Set up a firewall:
    - `ufw allow OpenSSH`
