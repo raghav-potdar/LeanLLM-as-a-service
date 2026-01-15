@@ -15,7 +15,7 @@ services:
           echo "Model already present, skipping download."
         fi
     volumes:
-      - /home/madmax/Documents/Projects/LeanLLM-as-a-service/models:/models
+      - ./models:/models
     networks:
       - llmnet
     restart: "no"
@@ -40,7 +40,7 @@ services:
       - "2"
       - --metrics
     volumes:
-      - /home/madmax/Documents/Projects/LeanLLM-as-a-service/models:/models:ro
+      - ./models:/models:ro
     expose:
       - "8000"
     networks:
@@ -52,7 +52,7 @@ services:
     ports:
       - "80:80"
     volumes:
-      - /home/madmax/Documents/Projects/LeanLLM-as-a-service/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - llama
     networks:
@@ -64,7 +64,7 @@ services:
     ports:
       - "9090:9090"
     volumes:
-      - /home/madmax/Documents/Projects/LeanLLM-as-a-service/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     depends_on:
       - llama
       - node-exporter
@@ -81,8 +81,8 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
-      - /home/madmax/Documents/Projects/LeanLLM-as-a-service/grafana/provisioning:/etc/grafana/provisioning:ro
-      - /home/madmax/Documents/Projects/LeanLLM-as-a-service/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
     networks:
