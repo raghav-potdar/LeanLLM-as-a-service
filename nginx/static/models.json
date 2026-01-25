@@ -1,0 +1,12 @@
+{
+  "models": [
+    {
+      "id": "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+      "architecture": "llama",
+      "size": "1B",
+      "quantization": "Q4_K_M",
+      "format": "GGUF",
+      "source": "https://huggingface.co/medmekk/Llama-3.2-1B-Instruct.GGUF"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+groups:
+  - name: llm-alerts
+    rules:
+      - alert: HighCPUUsage
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[1m])) * 100) > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High CPU usage
+          description: CPU usage has been above 90% for 5 minutes.
+
+      - alert: LowMemoryAvailable
+        expr: (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) < 0.10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Low memory available
+          description: Memory available is below 10% for 5 minutes.
+
+      - alert: HighP95Latency
+        expr: histogram_quantile(0.95, sum(rate(nginxlog_http_response_time_seconds_hist_bucket{method="POST",status="200"}[5m])) by (le)) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High p95 latency
+          description: p95 latency is above 2s for 5 minutes.
+
+      - alert: HighP99Latency
+        expr: histogram_quantile(0.99, sum(rate(nginxlog_http_response_time_seconds_hist_bucket{method="POST",status="200"}[5m])) by (le)) > 5
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: High p99 latency
+          description: p99 latency is above 5s for 5 minutes.

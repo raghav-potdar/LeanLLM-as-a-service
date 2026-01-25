@@ -83,6 +83,27 @@
           "decimals": 2
         }
       }
+    },
+    {
+      "type": "timeseries",
+      "title": "Request Latency (p95/p99)",
+      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(nginxlog_http_response_time_seconds_hist_bucket{method=\"POST\",status=\"200\"}[5m])) by (le))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(nginxlog_http_response_time_seconds_hist_bucket{method=\"POST\",status=\"200\"}[5m])) by (le))",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 3
+        }
+      }
     }
   ]
 }
