@@ -2,6 +2,7 @@ models/*.gguf
 models/**/*.gguf
 .env
 *.log
+nginx/logs/
 __pycache__/
 .DS_Store
 
