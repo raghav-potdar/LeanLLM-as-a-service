@@ -8,7 +8,12 @@
     {
       "type": "timeseries",
       "title": "Tokens Per Second",
-      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
       "targets": [
         {
           "expr": "avg(llamacpp:prompt_tokens_seconds)",
@@ -29,7 +34,12 @@
     {
       "type": "timeseries",
       "title": "CPU Usage (%)",
-      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
       "targets": [
         {
           "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[1m])) * 100)",
@@ -46,7 +56,12 @@
     {
       "type": "timeseries",
       "title": "Requests (Processing vs Deferred)",
-      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
       "targets": [
         {
           "expr": "avg(llamacpp:requests_processing)",
@@ -66,7 +81,12 @@
     {
       "type": "timeseries",
       "title": "Token Counters (rate)",
-      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
       "targets": [
         {
           "expr": "sum(rate(llamacpp:prompt_tokens_total[1m]))",
@@ -87,7 +107,12 @@
     {
       "type": "timeseries",
       "title": "Request Latency (p95/p99)",
-      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 8 },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 24,
+        "h": 8
+      },
       "targets": [
         {
           "expr": "histogram_quantile(0.95, sum(rate(nginxlog_http_response_time_seconds_hist_bucket{method=\"POST\",status=\"200\"}[5m])) by (le))",
@@ -104,7 +129,82 @@
           "decimals": 3
         }
       }
+    },
+    {
+      "title": "GPU VRAM Usage (GPU mode only)",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "description": "GPU frame-buffer memory used. Only shows data when gpu-exporter container is running (GPU mode).",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "nvidia_smi_memory_used_bytes",
+          "legendFormat": "VRAM Used ({{gpu_name}})",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "single"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "title": "GPU Utilization % (GPU mode only)",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "description": "GPU compute utilization. Only shows data when gpu-exporter container is running (GPU mode).",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "nvidia_smi_utilization_gpu_ratio * 100",
+          "legendFormat": "GPU Util % ({{gpu_name}})",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "single"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
     }
   ]
 }
-
