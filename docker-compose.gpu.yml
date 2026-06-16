@@ -1,0 +1,18 @@
+# GPU override — merge with base compose file when running on NVIDIA hardware:
+#   docker compose -f docker-compose.yaml -f docker-compose.gpu.yml --profile gpu up -d
+#
+# Prerequisites: nvidia-container-toolkit must be installed and Docker restarted.
+# See README.md "GPU Support" section for full setup instructions.
+
+services:
+  llama:
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+  gpu-exporter:
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=utility

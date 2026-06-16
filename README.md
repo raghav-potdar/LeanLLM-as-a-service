@@ -1,161 +1,305 @@
 # The Lean LLM-as-a-Service
 
-This repo provides a production-style, CPU-only LLM API stack using:
-- `llama.cpp` server for inference (OpenAI-compatible API + Prometheus metrics)
-- Nginx for rate limiting and request logging
-- Prometheus + Grafana + Alertmanager for monitoring and alerting
+A production-style LLM API stack that runs a small quantized model (Llama-3.2-1B) with CPU or NVIDIA GPU inference, complete with monitoring, alerting, and rate limiting.
+
+**Stack:**
+- `llama.cpp` server — OpenAI-compatible inference API with built-in Prometheus metrics
+- Nginx — API gateway with rate limiting and request logging
+- Prometheus + Grafana + Alertmanager — monitoring, dashboards, and alerting
+- Node Exporter + Nginxlog Exporter — host and HTTP metrics
+- GPU Exporter — NVIDIA VRAM and utilization metrics (GPU mode only)
+
+---
+
+## Quick Start (CPU)
+
+```bash
+git clone https://github.com/raghav-potdar/LeanLLM-as-a-service
+cd LeanLLM-as-a-service
+docker compose up -d
+```
+
+The `model-downloader` service fetches `Llama-3.2-1B-Instruct-Q4_K_M.gguf` automatically on first run. The inference server starts once the download completes.
+
+---
 
 ## Step A: Provision the server
 
-1. Create a VM on cloud (4GB RAM / 2 vCPU)
-2. Add your SSH key, then SSH in:
-   - `ssh root@YOUR_DROPLET_IP`
-3. Set up a firewall:
-   - `ufw allow OpenSSH`
-   - `ufw allow 80/tcp`
-   - `ufw allow 3000/tcp`
-   - `ufw allow 9090/tcp`
-   - `ufw allow 9093/tcp`
-   - `ufw enable`
-4. Install Docker Engine and the Compose plugin:
-   - `apt-get update`
-   - `apt-get install -y docker.io docker-compose-plugin`
-   - `systemctl enable --now docker`
+1. Create a VM (minimum 4 GB RAM / 2 vCPU for CPU mode; 6 GB VRAM GPU for GPU mode)
+2. SSH in and open firewall ports:
 
-## Step B: Prepare the model
+```bash
+ufw allow OpenSSH
+ufw allow 80/tcp
+ufw allow 3000/tcp
+ufw allow 9090/tcp
+ufw allow 9093/tcp
+ufw enable
+```
 
-The compose stack includes a `model-downloader` service that fetches the GGUF model
-if it is missing. The file is stored at:
-- `./models/Llama-3.2-1B-Instruct-Q4_K_M.gguf`
+3. Install Docker:
 
-## Step C: API gateway (rate limiting)
+```bash
+apt-get update
+apt-get install -y docker.io docker-compose-plugin
+systemctl enable --now docker
+```
 
-The Nginx configuration is in `nginx/nginx.conf` and enforces:
-- 5 requests per minute per IP
-- burst up to 10 requests
+---
 
-## Step D: Monitoring
+## Step B: Configuration
 
-Prometheus scrapes:
-- `llama` metrics at `http://llama:8000/metrics`
-- node-exporter for CPU/memory on the host
-- Nginx request metrics via `nginxlog-exporter`
+Copy the example env file (optional — defaults work out of the box for CPU):
 
-Grafana is pre-provisioned with a dashboard:
-- Prompt vs generation tokens/sec
-- CPU usage
-- Request load
-- p95/p99 request latency
-  - Powered by `nginxlog-exporter` histogram metrics
+```bash
+cp .env.example .env
+```
 
-Alertmanager is included for basic alerting rules (high CPU, low memory, high p95/p99).
-Edit the rules in `prometheus/alert_rules.yml` as needed.
+Key variables in `.env`:
 
-## Run the stack
+| Variable | Default | Description |
+|---|---|---|
+| `LLAMA_IMAGE` | `ghcr.io/ggml-org/llama.cpp:server` | Inference server image |
+| `LLAMA_GPU_LAYERS` | `0` | Layers to offload to GPU (0 = CPU only) |
+| `LLAMA_THREADS` | `2` | CPU threads |
+| `LLAMA_CTX_SIZE` | `4096` | Context window size (tokens) |
+| `LLAMA_PARALLEL` | `1` | Parallel request slots |
 
-From the repo root:
+---
+
+## Step C: Run the stack
+
+**CPU mode:**
 
 ```bash
 docker compose up -d
 ```
 
-If the model does not exist yet, it will be downloaded automatically before the
-inference server starts.
-
-## API usage
-
-The gateway listens on port 80.
-
-Example (OpenAI-compatible):
+**GPU mode (NVIDIA):**
 
 ```bash
-curl http://YOUR_DROPLET_IP/v1/chat/completions \
+docker compose -f docker-compose.yaml -f docker-compose.gpu.yml --profile gpu up -d
+```
+
+See the [GPU Support](#gpu-support) section below for prerequisites.
+
+**Apply config changes:**
+
+```bash
+docker compose up -d                        # CPU
+docker compose -f docker-compose.yaml -f docker-compose.gpu.yml --profile gpu up -d  # GPU
+```
+
+Docker Compose recreates only containers whose config changed.
+
+---
+
+## API Usage
+
+The gateway listens on port 80. All requests are OpenAI-compatible.
+
+**cURL:**
+
+```bash
+curl http://YOUR_SERVER_IP/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+    "model": "llama",
     "messages": [{"role": "user", "content": "Say hello in one sentence."}]
   }'
 ```
 
-Local usage (bypass Nginx):
+**Streaming:**
 
 ```bash
-curl http://localhost:8000/v1/chat/completions \
+curl http://YOUR_SERVER_IP/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
-    "messages": [{"role": "user", "content": "Say hello in one sentence."}]
-  }'
-```
-
-Streaming example:
-
-```bash
-curl http://YOUR_DROPLET_IP/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+    "model": "llama",
     "stream": true,
-    "messages": [{"role": "user", "content": "Stream a short reply."}]
+    "messages": [{"role": "user", "content": "Write a short poem."}]
   }'
 ```
 
-Python example:
+**Python (openai SDK):**
 
 ```python
-import requests
+from openai import OpenAI
 
-resp = requests.post(
-    "http://localhost/v1/chat/completions",
-    json={
-        "model": "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
-        "messages": [{"role": "user", "content": "Say hello in one sentence."}],
-        "temperature": 0.7,
-    },
-    timeout=60,
+client = OpenAI(base_url="http://localhost/v1", api_key="none")
+
+response = client.chat.completions.create(
+    model="llama",
+    messages=[{"role": "user", "content": "Say hello in one sentence."}],
+    max_tokens=200
 )
-print(resp.json()["choices"][0]["message"]["content"])
+print(response.choices[0].message.content)
 ```
 
-## Performance check
+**Python (streaming):**
 
-```bash
-./scripts/llm_perf_check.sh
+```python
+for chunk in client.chat.completions.create(
+    model="llama",
+    messages=[{"role": "user", "content": "Write a short poem."}],
+    stream=True
+):
+    print(chunk.choices[0].delta.content or "", end="", flush=True)
 ```
 
-## Benchmark suite
+---
 
-```bash
-python3 ./scripts/llm_benchmark.py --requests 20 --concurrency 4 --max-tokens 128
-```
+## Rate Limiting
 
-Outputs:
-- `benchmark.json`
-- `benchmark.csv`
+Nginx enforces:
+- 5 requests/minute per IP
+- Burst up to 10 requests
 
-Tip: the Nginx gateway enforces rate limits. For heavy benchmarks, target the model
-directly instead:
+For benchmarks, target the model directly to bypass rate limits:
 
 ```bash
 python3 ./scripts/llm_benchmark.py --base-url http://localhost:8000 --requests 20 --concurrency 4
 ```
 
-## Model catalog
+---
 
-The catalog is exposed at:
-- `http://YOUR_DROPLET_IP/models.json`
+## Performance Check
 
-## Health endpoints
+Quick latency and TPS check:
 
-- Nginx: `http://YOUR_DROPLET_IP/health`
-- Prometheus: `http://YOUR_DROPLET_IP:9090/-/healthy`
-- Grafana: `http://YOUR_DROPLET_IP:3000/api/health`
-- Alertmanager: `http://YOUR_DROPLET_IP:9093/-/healthy`
-- Llama metrics: `http://YOUR_DROPLET_IP:8000/metrics` (direct access)
+```bash
+./scripts/llm_perf_check.sh
+```
 
-## Grafana
+Benchmark suite (outputs `benchmark.json` and `benchmark.csv`):
 
-Visit `http://YOUR_DROPLET_IP:3000` and log in:
-- user: `admin`
-- pass: `admin`
+```bash
+python3 ./scripts/llm_benchmark.py --requests 20 --concurrency 4 --max-tokens 128
+```
 
+---
+
+## Monitoring
+
+| Service | URL |
+|---|---|
+| Grafana | `http://YOUR_SERVER_IP:3000` (admin / admin) |
+| Prometheus | `http://YOUR_SERVER_IP:9090` |
+| Alertmanager | `http://YOUR_SERVER_IP:9093` |
+
+**Grafana dashboard panels:**
+- Tokens per second (prompt + generation)
+- CPU usage %
+- Requests processing vs deferred
+- Token counters (rate)
+- Request latency p95/p99
+- GPU VRAM usage (GPU mode only)
+- GPU utilization % (GPU mode only)
+
+**Prometheus scrape jobs:**
+- `llama` — inference metrics at `llama:8000/metrics`
+- `node-exporter` — host CPU / memory
+- `nginxlog-exporter` — HTTP request durations from Nginx access logs
+- `gpu-exporter` — NVIDIA VRAM and utilization (active in GPU mode only)
+
+**Alerting rules** (`prometheus/alert_rules.yml`):
+- High CPU usage
+- Low memory available
+- High p95 / p99 request latency
+
+---
+
+## Model Catalog
+
+```bash
+curl http://YOUR_SERVER_IP/models.json
+```
+
+---
+
+## Health Endpoints
+
+| Service | Endpoint |
+|---|---|
+| Nginx | `http://YOUR_SERVER_IP/health` |
+| Prometheus | `http://YOUR_SERVER_IP:9090/-/healthy` |
+| Grafana | `http://YOUR_SERVER_IP:3000/api/health` |
+| Alertmanager | `http://YOUR_SERVER_IP:9093/-/healthy` |
+| Llama (internal) | `http://llama:8000/metrics` |
+
+---
+
+## GPU Support
+
+### Prerequisites
+
+**1. Install NVIDIA Container Toolkit:**
+
+```bash
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
+  | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-ct.gpg
+distribution=$(. /etc/os-release; echo $ID$VERSION_ID)
+curl -s -L "https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list" \
+  | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-ct.gpg] https://#g' \
+  | sudo tee /etc/apt/sources.list.d/nvidia-ct.list
+sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+```
+
+**2. Generate CDI device spec** (required for Docker to map the GPU):
+
+```bash
+sudo mkdir -p /etc/cdi
+sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
+```
+
+**3. Add your user to the docker group** (system Docker socket access):
+
+```bash
+sudo usermod -aG docker $USER
+newgrp docker
+```
+
+**4. Verify nvidia runtime is registered:**
+
+```bash
+docker info | grep -i runtime
+# Should show: Runtimes: ... nvidia ...
+```
+
+> If you use Docker Desktop, note that it runs in a VM and does not share the host's `nvidia-container-runtime`. Stop Docker Desktop (`systemctl --user stop docker-desktop`) and use the system Docker daemon (`docker context use default`) for GPU workloads.
+
+### Configure `.env`
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with GPU values:
+
+```env
+LLAMA_IMAGE=ghcr.io/ggml-org/llama.cpp:server-cuda
+LLAMA_GPU_LAYERS=99
+LLAMA_THREADS=4
+LLAMA_CTX_SIZE=8192
+LLAMA_PARALLEL=4
+```
+
+### Run in GPU mode
+
+```bash
+docker compose -f docker-compose.yaml -f docker-compose.gpu.yml --profile gpu up -d
+```
+
+The `docker-compose.gpu.yml` overlay applies the `nvidia` runtime and `NVIDIA_VISIBLE_DEVICES=all` to both the `llama` and `gpu-exporter` containers. The `--profile gpu` flag activates the GPU exporter service.
+
+### CPU vs GPU comparison
+
+| Setting | CPU (default) | GPU (NVIDIA) |
+|---|---|---|
+| Image | `llama.cpp:server` | `llama.cpp:server-cuda` |
+| `LLAMA_GPU_LAYERS` | `0` | `99` |
+| Context size | 4096 | 8192+ |
+| Parallel slots | 1 | 4 |
+| Expected TPS | ~15–20 | ~80–200+ |
